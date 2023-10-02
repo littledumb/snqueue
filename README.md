@@ -1,2 +1,2 @@
-# SnQueue - An SNS/SQS Implementation of Event Messenger
+# SnQueue - An SNS/SQS Event Messenger
 
