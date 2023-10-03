@@ -5,9 +5,6 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "snqueue"
 version = "0.0.1"
-authors = [
-  { name="Jiamin Zhao", email="jiamin@gmail.com" },
-]
 description = "An SNS/SQS implementation of event messenger"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -19,3 +16,7 @@ classifiers = [
 dependencies = [
   "boto3",
 ]
+
+[project.urls]
+"Homepage" = "https://github.com/littledumb/snqueue"
+"Bug Tracker" = "https://github.com/littledumb/snqueue/issues"
