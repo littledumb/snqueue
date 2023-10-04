@@ -1,4 +1,5 @@
 import boto3
+import json
 
 class Boto3Client:
   """
@@ -165,7 +166,7 @@ class SnQueue:
     
   def notify(self,
              sns_topic_arn: str,
-             message: str,
+             message: str | dict,
              sns_args: dict = None) -> dict:
     """
     Send notifications.
@@ -173,7 +174,7 @@ class SnQueue:
     :type sns_topic_arn: string
     :param sns_topic_arn: The ARN of the SNS topic
 
-    :type message: string
+    :type message: string | dict
     :param message: The notification message
 
     :type sns_args: dict
@@ -182,5 +183,7 @@ class SnQueue:
     :rtype: dict
     :return: The SNS response of publishing the message
     """
+    if isinstance(message, dict):
+      message = json.dumps(message, ensure_ascii=False).encode('utf8').decode()
     with SnsClient(self.profile_name) as sns:
       return sns.publish(sns_topic_arn, message, sns_args)
