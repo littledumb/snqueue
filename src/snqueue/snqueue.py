@@ -41,24 +41,22 @@ class SqsClient(Boto3Client):
   
   def pull_messages(self,
                     sqs_url: str,
-                    sqs_args: dict) -> list[dict]:
+                    **kwargs) -> list[dict]:
     """
     Pull messages from SQS.
     
     :type sqs_url: string
     :param sqs_url: The URL of the SQS queue
 
-    :type sqs_args: dict
-    :param sqs_args: The dict that provides additional arguments (e.g. {"MaxNumberOfMessages": 1})
+    :type kwargs: dict
+    :param kwargs: Additional arguments (e.g. {"MaxNumberOfMessages": 1})
     
     :rtype: list
     :return: The list of messages retrieved
     """
-    sqs_args = sqs_args or {}
-
     response = self.client.receive_message(
       QueueUrl = sqs_url,
-      **sqs_args
+      **kwargs
     )
 
     return response.get('Messages', [])
@@ -101,7 +99,7 @@ class SnsClient(Boto3Client):
   def publish(self,
               topic_arn: str,
               message: str,
-              sns_args: dict) -> dict:
+              **kwargs) -> dict:
     """
     Publish message to SNS.
     
@@ -111,18 +109,16 @@ class SnsClient(Boto3Client):
     :type message: string
     :param message: The message to be pulished
 
-    :type sns_args: dict
-    :param sns_args: The dict that provides additional arguments (e.g. {"MessageDeduplicationId": "x"})
+    :type kwargs: dict
+    :param kwargs: Additional arguments (e.g. {"MessageDeduplicationId": "x"})
 
     :rtype: dict
     :return: The SNS response of publishing the message
     """
-    sns_args = sns_args or {}
-
     return self.client.publish(
       TopicArn = topic_arn,
       Message = message,
-      **sns_args
+      **kwargs
     )
 
 class SnQueue:
@@ -140,7 +136,7 @@ class SnQueue:
   def retrieve(self,
                sqs_url: str,
                delete: bool = True,
-               sqs_args: dict = None) -> list[dict]:
+               **kwargs) -> list[dict]:
     """
     Retrieve messages.
 
@@ -150,14 +146,14 @@ class SnQueue:
     :type delete: bool
     :param delete: Whether to delete messages after receiving them. Default is True.
 
-    :type sqs_args: dict
-    :param sqs_args: The dict that provides additional arguments (e.g. {"MaxNumberOfMessages": 1})
+    :type kwargs: dict
+    :param kwargs: Additional arguments (e.g. {"MaxNumberOfMessages": 1})
 
     :rtype: list
     :return: The list of messages retrieved
     """
     with SqsClient(self.profile_name) as sqs:
-      messages = sqs.pull_messages(sqs_url, sqs_args)
+      messages = sqs.pull_messages(sqs_url, **kwargs)
 
       if delete:
         sqs.delete_messages(sqs_url, messages)
@@ -167,7 +163,7 @@ class SnQueue:
   def notify(self,
              sns_topic_arn: str,
              message: str | dict,
-             sns_args: dict = None) -> dict:
+             **kwargs) -> dict:
     """
     Send notifications.
 
@@ -177,8 +173,8 @@ class SnQueue:
     :type message: string | dict
     :param message: The notification message
 
-    :type sns_args: dict
-    :param sns_args: The dict that provides additional arguments (e.g. {"MessageDeduplicationId": "x"})
+    :type kwargs: dict
+    :param kwargs: Additional arguments (e.g. {"MessageDeduplicationId": "x"})
 
     :rtype: dict
     :return: The SNS response of publishing the message
@@ -186,4 +182,4 @@ class SnQueue:
     if isinstance(message, dict):
       message = json.dumps(message, ensure_ascii=False).encode('utf8').decode()
     with SnsClient(self.profile_name) as sns:
-      return sns.publish(sns_topic_arn, message, sns_args)
+      return sns.publish(sns_topic_arn, message, **kwargs)
