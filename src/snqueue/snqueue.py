@@ -1,6 +1,9 @@
 import boto3
 import json
 
+from typing import Type, TypeVar, Protocol, Any
+from pydantic import BaseModel
+
 class Boto3Client:
   """
   A base class for AWS clients.
@@ -121,7 +124,7 @@ class SnsClient(Boto3Client):
       **kwargs
     )
 
-class SnQueue:
+class SnQueueMessenger:
   """
   An SNS/SQS event messenger.
 
@@ -183,3 +186,45 @@ class SnQueue:
       message = json.dumps(message, ensure_ascii=False).encode('utf8').decode()
     with SnsClient(self.profile_name) as sns:
       return sns.publish(sns_topic_arn, message, **kwargs)
+
+DataModel = TypeVar("DataModel", bound=BaseModel)
+
+class ServiceFunc(Protocol):
+  def __call__(self, data: str|dict, **kwargs) -> Any: ...
+
+class SnQueueService:
+  def __init__(self,
+               aws_profile_name: str,
+               service_func: ServiceFunc,
+               data_model_class: Type[DataModel]=None):
+    self.messenger = SnQueueMessenger(aws_profile_name)
+    self.service_func = service_func
+    self.data_model_class = data_model_class
+
+  def run(self, sqs_url: str, sqs_args: dict = {}):
+    try:
+      messages = self.messenger.retrieve(sqs_url, **sqs_args)
+    except: return
+
+    for message in messages:
+      try:
+        body = json.loads(message.get('Body'))
+        # Extract notification arn
+        notif_arn = body.get('MessageAttributes', {}).get('NotificationArn', {}).get('Value')
+        # Initiate notification
+        notif = {}
+        notif['RequestMessageId'] = body.get('MessageId')
+        # Extract and validate data
+        data = body.get('Message')
+        if self.data_model_class:
+          data = self.data_model_class.model_validate_json(data, strict=True)
+          data = data.model_dump(exclude_none=True)
+        # Call the service function
+        notif['Result'] = self.service_func(
+          data,
+          has_notification_arn=True if notif_arn else False)
+      except Exception as e:
+        notif['ErrorMessage'] = str(e)
+      finally:
+        if notif_arn:
+          self.messenger.notify(notif_arn, notif)

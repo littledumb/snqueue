@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "snqueue"
-version = "0.0.4"
-description = "An SNS/SQS implementation of event messenger"
+version = "0.1.0"
+description = "An SNS/SQS implementation of event messenger and service mechanism"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
@@ -15,6 +15,7 @@ classifiers = [
 ]
 dependencies = [
   "boto3",
+  "pydantic"
 ]
 
 [project.urls]

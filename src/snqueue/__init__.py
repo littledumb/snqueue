@@ -1,1 +1,1 @@
-from snqueue.snqueue import Boto3Client, SqsClient, SnsClient, SnQueue
+from snqueue.snqueue import Boto3Client, SqsClient, SnsClient, SnQueueMessenger, SnQueueService
