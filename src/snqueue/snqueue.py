@@ -1,5 +1,6 @@
 import boto3
 import json
+import logging
 
 from typing import Type, TypeVar, Protocol, Any
 from pydantic import BaseModel
@@ -204,7 +205,9 @@ class SnQueueService:
   def run(self, sqs_url: str, sqs_args: dict = {}):
     try:
       messages = self.messenger.retrieve(sqs_url, **sqs_args)
-    except: return
+    except Exception as e:
+      logging.error(e)
+      return
 
     for message in messages:
       try:

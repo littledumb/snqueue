@@ -6,7 +6,7 @@
 pip install snqueue
 ```
 
-## Example
+## Examples
 
 ### A Simple Messenger
 
