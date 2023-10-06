@@ -195,22 +195,29 @@ class ServiceFunc(Protocol):
 
 class SnQueueService:
   def __init__(self,
+               name: str,
                aws_profile_name: str,
                service_func: ServiceFunc,
+               silent: bool = False,
                data_model_class: Type[DataModel]=None):
+    self.name = name
     self.messenger = SnQueueMessenger(aws_profile_name)
     self.service_func = service_func
+    self.silent = silent
     self.data_model_class = data_model_class
+    self.logger = logging.getLogger('snqueue.service.%s' % name)
 
   def run(self, sqs_url: str, sqs_args: dict = {}):
     try:
       messages = self.messenger.retrieve(sqs_url, **sqs_args)
     except Exception as e:
-      logging.error(e)
+      self.logger.critical(' Service initialization error:\n  %s', e)
       return
 
     for message in messages:
       try:
+        if not self.silent:
+          self.logger.info(' Received a message:\n  %s', message)
         body = json.loads(message.get('Body'))
         # Extract notification arn
         notif_arn = body.get('MessageAttributes', {}).get('NotificationArn', {}).get('Value')
@@ -223,11 +230,18 @@ class SnQueueService:
           data = self.data_model_class.model_validate_json(data, strict=True)
           data = data.model_dump(exclude_none=True)
         # Call the service function
-        notif['Result'] = self.service_func(
+        result = self.service_func(
           data,
           has_notification_arn=True if notif_arn else False)
+        notif['Result'] = result
+        if not self.silent:
+          self.logger.info(' Completed a service:\n  data: %s\n  result: %s', data, result)
       except Exception as e:
         notif['ErrorMessage'] = str(e)
+        if not self.silent:
+          self.logger.error(' Incurred an error:\n  %s', e)
       finally:
         if notif_arn:
-          self.messenger.notify(notif_arn, notif)
+          response = self.messenger.notify(notif_arn, notif)
+          if not self.silent:
+            self.logger.info(' Sent a notification:\n  %s', response)
