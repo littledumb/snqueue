@@ -6,15 +6,15 @@ from typing import Type, TypeVar, Protocol, Any
 from pydantic import BaseModel
 
 class Boto3Client:
-  """
+  '''
   A base class for AWS clients.
 
   :type client_name: string
-  :param client_name: The name of the boto3 client, such as "sqs", "sns", "s3", etc.
+  :param client_name: The name of the boto3 client, such as 'sqs', 'sns', 's3', etc.
 
   :type profile_name: string
   :param profile_name: The AWS profile name
-  """
+  '''
   def __init__(self,
                client_name: str,
                profile_name: str):
@@ -32,32 +32,32 @@ class Boto3Client:
     return
 
 class SqsClient(Boto3Client):
-  """
+  '''
   A boto3 client receives messages from SQS.
 
   :type profile_name: string
   :param profile_name: The AWS profile name
-  """
+  '''
   def __init__(self,
                profile_name: str):
-    super().__init__("sqs", profile_name)
+    super().__init__('sqs', profile_name)
     return
   
   def pull_messages(self,
                     sqs_url: str,
                     **kwargs) -> list[dict]:
-    """
+    '''
     Pull messages from SQS.
     
     :type sqs_url: string
     :param sqs_url: The URL of the SQS queue
 
     :type kwargs: dict
-    :param kwargs: Additional arguments (e.g. {"MaxNumberOfMessages": 1})
+    :param kwargs: Additional arguments (e.g. {'MaxNumberOfMessages': 1})
     
     :rtype: list
     :return: The list of messages retrieved
-    """
+    '''
     response = self.client.receive_message(
       QueueUrl = sqs_url,
       **kwargs
@@ -68,7 +68,7 @@ class SqsClient(Boto3Client):
   def delete_messages(self,
                       sqs_url: str,
                       messages: list[dict]) -> int:
-    """
+    '''
     Delete messages from SQS.
 
     :type sqs_url: string
@@ -79,7 +79,7 @@ class SqsClient(Boto3Client):
 
     :rtype: int
     :return: The number of deleted messages
-    """
+    '''
     for msg in messages:
       self.client.delete_message(
         QueueUrl=sqs_url,
@@ -88,23 +88,23 @@ class SqsClient(Boto3Client):
     return len(messages)
   
 class SnsClient(Boto3Client):
-  """
+  '''
   A boto3 client sends notificaitons to SNS.
 
   :type profile_name: string
   :param profile_name: The name of AWS profile
-  """
+  '''
   def __init__(self,
                profile_name: str
                ):
-    super().__init__("sns", profile_name)
+    super().__init__('sns', profile_name)
     return
   
   def publish(self,
               topic_arn: str,
               message: str,
               **kwargs) -> dict:
-    """
+    '''
     Publish message to SNS.
     
     :type topic_arn: string
@@ -114,11 +114,11 @@ class SnsClient(Boto3Client):
     :param message: The message to be pulished
 
     :type kwargs: dict
-    :param kwargs: Additional arguments (e.g. {"MessageDeduplicationId": "x"})
+    :param kwargs: Additional arguments (e.g. {'MessageDeduplicationId': 'x'})
 
     :rtype: dict
     :return: The SNS response of publishing the message
-    """
+    '''
     return self.client.publish(
       TopicArn = topic_arn,
       Message = message,
@@ -126,12 +126,12 @@ class SnsClient(Boto3Client):
     )
 
 class SnQueueMessenger:
-  """
+  '''
   An SNS/SQS event messenger.
 
   :type profile_name: string
   :param profile_name: The name of AWS profile
-  """
+  '''
   def __init__(self,
                profile_name: str):
     self.profile_name = profile_name
@@ -141,7 +141,7 @@ class SnQueueMessenger:
                sqs_url: str,
                delete: bool = True,
                **kwargs) -> list[dict]:
-    """
+    '''
     Retrieve messages.
 
     :type sqs_url: string
@@ -151,11 +151,11 @@ class SnQueueMessenger:
     :param delete: Whether to delete messages after receiving them. Default is True.
 
     :type kwargs: dict
-    :param kwargs: Additional arguments (e.g. {"MaxNumberOfMessages": 1})
+    :param kwargs: Additional arguments (e.g. {'MaxNumberOfMessages': 1})
 
     :rtype: list
     :return: The list of messages retrieved
-    """
+    '''
     with SqsClient(self.profile_name) as sqs:
       messages = sqs.pull_messages(sqs_url, **kwargs)
 
@@ -168,7 +168,7 @@ class SnQueueMessenger:
              sns_topic_arn: str,
              message: str | dict,
              **kwargs) -> dict:
-    """
+    '''
     Send notifications.
 
     :type sns_topic_arn: string
@@ -178,17 +178,17 @@ class SnQueueMessenger:
     :param message: The notification message
 
     :type kwargs: dict
-    :param kwargs: Additional arguments (e.g. {"MessageDeduplicationId": "x"})
+    :param kwargs: Additional arguments (e.g. {'MessageDeduplicationId': 'x'})
 
     :rtype: dict
     :return: The SNS response of publishing the message
-    """
+    '''
     if isinstance(message, dict):
       message = json.dumps(message, ensure_ascii=False).encode('utf8').decode()
     with SnsClient(self.profile_name) as sns:
       return sns.publish(sns_topic_arn, message, **kwargs)
 
-DataModel = TypeVar("DataModel", bound=BaseModel)
+DataModel = TypeVar('DataModel', bound=BaseModel)
 
 class ServiceFunc(Protocol):
   def __call__(self, data: str|dict, **kwargs) -> Any: ...
@@ -198,12 +198,14 @@ class SnQueueService:
                name: str,
                aws_profile_name: str,
                service_func: ServiceFunc,
-               silent: bool = False,
+               silent: bool=False,
+               require_notification_arn: bool=True,
                data_model_class: Type[DataModel]=None):
     self.name = name
     self.messenger = SnQueueMessenger(aws_profile_name)
     self.service_func = service_func
     self.silent = silent
+    self.require_notification_arn = require_notification_arn
     self.data_model_class = data_model_class
     self.logger = logging.getLogger('snqueue.service.%s' % name)
 
@@ -219,20 +221,24 @@ class SnQueueService:
         if not self.silent:
           self.logger.info(' Received a message:\n  %s', message)
         body = json.loads(message.get('Body'))
+
         # Extract notification arn
         notif_arn = body.get('MessageAttributes', {}).get('NotificationArn', {}).get('Value')
+        if not notif_arn and self.require_notification_arn:
+          raise '`NotificationArn` is required.'
+        
         # Initiate notification
         notif = {}
         notif['RequestMessageId'] = body.get('MessageId')
+        
         # Extract and validate data
         data = body.get('Message')
         if self.data_model_class:
           data = self.data_model_class.model_validate_json(data, strict=True)
           data = data.model_dump(exclude_none=True)
+        
         # Call the service function
-        result = self.service_func(
-          data,
-          has_notification_arn=True if notif_arn else False)
+        result = self.service_func(data)
         notif['Result'] = result
         if not self.silent:
           self.logger.info(' Completed a service:\n  data: %s\n  result: %s', data, result)

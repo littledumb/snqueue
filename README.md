@@ -34,8 +34,7 @@ except Exception as e:
 ```py3
 import json
 import time
-from snqueue import SnQueueMessenger, SnQueueService
-from apscheduler.schedulers.background import BackgroundScheduler
+from snqueue import SnQueueMessenger, start_service
 
 # Define the service function
 def dumb_service_func(data: str, **_) -> int:
@@ -53,23 +52,13 @@ if __name__ == '__main__':
   notif_arn = "MY_RESULT_TOPIC_ARN"
   notif_sqs_url = "MY_RESULT_SQS_URL"
 
-  logging.getLogger('snqueue.service.%s' % service_name).setLevel(logging.INFO)
-
-  # Setup and start the service
-  service = SnQueueService(
+  # Start the service
+  scheduler = start_service(
     service_name,
     aws_profile_name,
+    service_sqs_url,
     dumb_service_func
   )
-
-  scheduler = BackgroundScheduler()
-  scheduler.add_job(service.run,
-                    args=[service_sqs_url, {'MaxNumberOfMessages': 1}],
-                    trigger='interval',
-                    seconds=3)
-
-  scheduler.start()
-  print("Service is up and running.")
 
   # Send request to the service
   task_messenger = SnQueueMessenger(aws_profile_name)
@@ -82,16 +71,16 @@ if __name__ == '__main__':
         'StringValue': notif_arn
       }
     })
-  print("Request has been sent:")
-  print(response)
+  logging.info("Request has been sent:")
+  logging.info(response)
 
   # Get result notification
   time.sleep(5)
 
   result_messenger = SnQueueMessenger(aws_profile_name)
   messages = result_messenger.retrieve(notif_sqs_url)
-  print("Result notficiations:")
-  print(messages)
+  logging.info("Result notficiations:")
+  logging.info(messages)
 
   # Shut down the service
   scheduler.shutdown()
