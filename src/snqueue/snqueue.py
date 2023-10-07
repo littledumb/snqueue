@@ -200,7 +200,8 @@ class SnQueueService:
                service_func: ServiceFunc,
                silent: bool=False,
                require_notification_arn: bool=True,
-               data_model_class: Type[DataModel]=None):
+               data_model_class: Type[DataModel]=None,
+               **kwargs):
     self.name = name
     self.messenger = SnQueueMessenger(aws_profile_name)
     self.service_func = service_func

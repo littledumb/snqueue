@@ -34,7 +34,7 @@ except Exception as e:
 ```py3
 import json
 import time
-from snqueue import SnQueueMessenger, start_service
+from snqueue import SnQueueMessenger, SnQueueService, start_service
 
 # Define the service function
 def dumb_service_func(data: str, **_) -> int:
@@ -44,23 +44,28 @@ def dumb_service_func(data: str, **_) -> int:
 if __name__ == '__main__':
   import logging
 
-  # Configuration
+  # Setup and start the service
   service_name = "MY_SERVICE_NAME"
   aws_profile_name = "MY_AWS_PROFILE_NAME"
-  service_topic_arn = "MY_SERVICE_TOPIC_ARN"
-  service_sqs_url = "MY_SERVICE_SQS_URL"
-  notif_arn = "MY_RESULT_TOPIC_ARN"
-  notif_sqs_url = "MY_RESULT_SQS_URL"
-
-  # Start the service
-  scheduler = start_service(
+  
+  service = SnQueueService(
     service_name,
     aws_profile_name,
-    service_sqs_url,
     dumb_service_func
   )
 
+  service_sqs_url = "MY_SERVICE_SQS_URL"
+  
+  scheduler = start_service(
+    service,
+    service_sqs_url
+  )
+
   # Send request to the service
+  service_topic_arn = "MY_SERVICE_TOPIC_ARN"
+  notif_arn = "MY_RESULT_TOPIC_ARN"
+  notif_sqs_url = "MY_RESULT_SQS_URL"
+
   task_messenger = SnQueueMessenger(aws_profile_name)
   response = task_messenger.notify(
     service_topic_arn,
