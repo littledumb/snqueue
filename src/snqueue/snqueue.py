@@ -194,14 +194,15 @@ class ServiceFunc(Protocol):
   def __call__(self, data: str|dict, **kwargs) -> Any: ...
 
 class SnQueueService:
-  def __init__(self,
-               name: str,
-               aws_profile_name: str,
-               service_func: ServiceFunc,
-               silent: bool=False,
-               require_notification_arn: bool=True,
-               data_model_class: Type[DataModel]=None,
-               **kwargs):
+  def __init__(
+      self,
+      name: str,
+      aws_profile_name: str,
+      service_func: ServiceFunc,
+      silent: bool=False,
+      require_notification_arn: bool=True,
+      data_model_class: Type[DataModel]=None
+  ):
     self.name = name
     self.messenger = SnQueueMessenger(aws_profile_name)
     self.service_func = service_func
@@ -222,6 +223,7 @@ class SnQueueService:
         if not self.silent:
           self.logger.info(' Received a message:\n  %s', message)
         body = json.loads(message.get('Body'))
+        message_id = body.get('MessageId')
 
         # Extract notification arn
         notif_arn = body.get('MessageAttributes', {}).get('NotificationArn', {}).get('Value')
@@ -230,7 +232,7 @@ class SnQueueService:
         
         # Initiate notification
         notif = {}
-        notif['RequestMessageId'] = body.get('MessageId')
+        notif['RequestMessageId'] = message_id
         
         # Extract and validate data
         data = body.get('Message')
@@ -239,7 +241,7 @@ class SnQueueService:
           data = data.model_dump(exclude_none=True)
         
         # Call the service function
-        result = self.service_func(data)
+        result = self.service_func(data, message_id=message_id)
         notif['Result'] = result
         if not self.silent:
           self.logger.info(' Completed a service:\n  data: %s\n  result: %s', data, result)
