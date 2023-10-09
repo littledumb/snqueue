@@ -241,7 +241,10 @@ class SnQueueService:
           data = data.model_dump(exclude_none=True)
         
         # Call the service function
-        result = self.service_func(data, message_id=message_id)
+        result = self.service_func(
+          data,
+          raw_message=message
+        )
         notif['Result'] = result
         if not self.silent:
           self.logger.info(' Completed a service:\n  data: %s\n  result: %s', data, result)
