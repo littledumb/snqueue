@@ -243,15 +243,12 @@ class SnQueueService:
         # Call the service function
         result = self.service_func(
           data,
-          raw_message=message
+          raw_message=message,
+          messenger=self.messenger
         )
         notif['Result'] = result
-        if not self.silent:
-          self.logger.info(' Completed a service:\n  data: %s\n  result: %s', data, result)
       except Exception as e:
         notif['ErrorMessage'] = str(e)
-        if not self.silent:
-          self.logger.error(' Incurred an error:\n  %s', e)
       finally:
         if notif_arn:
           response = self.messenger.notify(notif_arn, notif)
