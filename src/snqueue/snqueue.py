@@ -243,15 +243,15 @@ class SnQueueService:
           data = data.model_dump(exclude_none=True)
         
         # Call the service function
-        result = self.service_func(
+        res = self.service_func(
           data,
           raw_message=message,
           messenger=self.messenger
         )
         if self.confirmation_only:
-          notif['Confirmation'] = data
+          notif['Confirmation'] = res or data
         else:
-          notif['Result'] = result
+          notif['Result'] = res
       except Exception as e:
         notif['ErrorMessage'] = str(e)
       finally:
