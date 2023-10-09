@@ -201,6 +201,7 @@ class SnQueueService:
       service_func: ServiceFunc,
       silent: bool=False,
       require_notification_arn: bool=True,
+      confirmation_only: bool=False,
       data_model_class: Type[DataModel]=None
   ):
     self.name = name
@@ -208,6 +209,7 @@ class SnQueueService:
     self.service_func = service_func
     self.silent = silent
     self.require_notification_arn = require_notification_arn
+    self.confirmation_only = confirmation_only
     self.data_model_class = data_model_class
     self.logger = logging.getLogger('snqueue.service.%s' % name)
 
@@ -246,7 +248,10 @@ class SnQueueService:
           raw_message=message,
           messenger=self.messenger
         )
-        notif['Result'] = result
+        if self.confirmation_only:
+          notif['Confirmation'] = data
+        else:
+          notif['Result'] = result
       except Exception as e:
         notif['ErrorMessage'] = str(e)
       finally:
