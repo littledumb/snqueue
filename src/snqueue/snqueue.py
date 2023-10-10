@@ -254,6 +254,7 @@ class SnQueueService:
           notif['Result'] = res
       except Exception as e:
         notif['ErrorMessage'] = str(e)
+        self.logger.error(e)
       finally:
         if notif_arn:
           response = self.messenger.notify(notif_arn, notif)
