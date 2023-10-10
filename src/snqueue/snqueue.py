@@ -221,6 +221,7 @@ class SnQueueService:
       return
 
     for message in messages:
+      notif = {}
       try:
         if not self.silent:
           self.logger.info(' Received a message:\n  %s', message)
@@ -233,7 +234,6 @@ class SnQueueService:
           raise '`NotificationArn` is required.'
         
         # Initiate notification
-        notif = {}
         notif['RequestMessageId'] = message_id
         
         # Extract and validate data
