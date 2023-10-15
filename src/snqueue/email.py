@@ -1,4 +1,5 @@
 import json
+import mimetypes
 import os
 import shutil
 import tempfile
@@ -6,19 +7,22 @@ import tempfile
 from base64 import b64decode
 from Cryptodome.Cipher import AES
 from email import policy, message_from_bytes
-from email.header import decode_header
+from email.header import decode_header, Header
 from email.message import EmailMessage
-from snqueue.boto3_clients import S3Client, KmsClient
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from snqueue.boto3_clients import Boto3Client, S3Client, KmsClient
 from typing import IO, NamedTuple
 
 class Email(NamedTuple):
-  From: str
-  To: str
-  Cc: str
-  Date: str
-  Subject: str
-  Body: str
-  Attachments: list[str]
+  From: str = ''
+  To: str = ''
+  Cc: str = ''
+  Date: str = ''
+  Subject: str = ''
+  Body: str = ''
+  Attachments: list[str] = []
 
 def decode_raw_email_text(text: str) -> str:
   decoded = ''
@@ -139,3 +143,47 @@ class S3Email:
   def __exit__(self, exc_type, exc_value, traceback):
     shutil.rmtree(self.tmp_dir)
     return
+
+def guess_mimetype(filename: str) -> list[str]:
+  mime_type, _ = mimetypes.guess_type(filename)
+  return mime_type.split('/', 1)
+
+class SesClient(Boto3Client):
+
+  def __init__(
+      self,
+      profile_name: str
+  ) -> None:
+    super().__init__('ses', profile_name)
+    return
+  
+  def send_email(
+      self,
+      mail: Email
+  ) -> dict:
+    # basic construction
+    msg = MIMEMultipart()
+    msg['Subject'] = mail.Subject
+    msg['From'] = mail.From
+    msg['To'] = mail.To
+    msg['Cc'] = mail.Cc
+    body = MIMEText(mail.Body, 'plain')
+    msg.attach(body)
+    # attachments
+    for filepath in mail.Attachments:
+      with open(filepath, 'rb') as fp:
+        data = fp.read()
+      filename = os.path.basename(filepath)
+      #maintype, subtype = guess_mimetype(filename)
+      #part = MIMEApplication(data, _subtype=f'{maintype};{subtype}')
+      part = MIMEApplication(data)
+      part.add_header(
+        'Content-Disposition',
+        'attachment',
+        filename=Header(filename, 'utf-8').encode()
+      )
+      msg.attach(part)
+
+    return self.client.send_raw_email(
+      RawMessage={ 'Data': msg.as_string() }
+    )
