@@ -1,4 +1,5 @@
 import logging
+import os
 import requests
 import shutil
 
@@ -36,6 +37,7 @@ def start_service(
 
 def download_from_url(
     url: str,
+    local_path: str=None,
     local_filename: str=None
 ) -> str | None:
   """
@@ -46,12 +48,12 @@ def download_from_url(
   :return: The name of local file downloaded
   :return: None if error
   """
-  if not local_filename:
-    local_filename = unquote(url).split('/')[-1].split('?')[0]
+  local_path = local_path or '.'
+  local_filename = local_filename or unquote(url).split('/')[-1].split('?')[0]
 
   try:
     with requests.get(url, stream=True) as r:
-      with open(local_filename, 'wb') as f:
+      with open(os.path.join(local_path, local_filename), 'wb') as f:
         shutil.copyfileobj(r.raw, f)
   except Exception as e:
     logging.error(e)
