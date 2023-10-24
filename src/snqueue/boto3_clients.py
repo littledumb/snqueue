@@ -1,5 +1,7 @@
 import boto3
+import logging
 
+from botocore.exceptions import ClientError
 from typing import IO
 
 class Boto3Client:
@@ -158,6 +160,71 @@ class S3Client(Boto3Client):
   ) -> dict:
     head = self.client.head_object(Bucket=bucket, Key=key)
     return head['Metadata']
+  
+  def create_presigned_get(
+      self,
+      bucket_name: str,
+      object_key: str,
+      expiration: int=3600
+  ) -> str | None:
+    """
+    Generate a presigned URL to share an S3 object
+
+    :param bucket_name: string
+    :param object_key: string
+    :param expiration: Time in seconds for the presigned URL to remain valid
+    :return: Presigned URL as string, If error, returns None.
+    """
+    # Generate a presigend URL for the S3 object
+    try:
+      response = self.client.generate_presigned_url(
+        'get_object',
+        Params={'Bucket': bucket_name, 'Key': object_key},
+        ExpiresIn=expiration
+      )
+    except ClientError as e:
+      logging.error(e)
+      return None
+    
+    # The response is the presigned URL
+    return response
+  
+  def create_presigned_post(
+      self,
+      bucket_name: str,
+      object_key: str,
+      fields: dict=None,
+      conditions: list=None,
+      expiration: int=3600
+  ) -> dict | None:
+    """
+    Generate a presigned URL S3 POST request to upload a file
+
+    :param bucket_name: string
+    :param object_key: string
+    :param fields: Dictionary of prefilled form fields
+    :param conditions: List of conditions to include in the policy
+    :param expiration: Time in seconds for the presigned URL to remain valid
+    :return: Dictionary with the following keys:
+      url: URL to post to
+      fields: Dictionary of form fields and values to submit with the POST
+    :return: None if error
+    """
+    # Generate a presigned S3 POST URL
+    try:
+      response = self.client.generate_presigned_post(
+        bucket_name,
+        object_key,
+        Fields=fields,
+        Conditions=conditions,
+        ExpiresIn=expiration
+      )
+    except ClientError as e:
+      logging.error(e)
+      return None
+    
+    # The response contains the presigned URL and required fields
+    return response
 
 class KmsClient(Boto3Client):
 

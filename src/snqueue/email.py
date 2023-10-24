@@ -1,4 +1,5 @@
 import json
+import html
 import mimetypes
 import os
 import shutil
@@ -69,7 +70,8 @@ def parse_email(
     ('From', 'To', 'Cc', 'Date', 'Subject')
   )
   fields = map(decode_raw_email_text, raw_fields)
-  body = get_email_body(message)
+  # html.unescape converts `&nbsp`; to `\xa0`
+  body = html.unescape(get_email_body(message)).replace('\xa0', ' ').strip()
   attachments = save_email_attachments(message, dir)
   return Email(*fields, body, attachments)
 
@@ -148,6 +150,17 @@ def guess_mimetype(filename: str) -> list[str]:
   mime_type, _ = mimetypes.guess_type(filename)
   return mime_type.split('/', 1)
 
+def encode_email_contact(contact: str) -> str:
+  if not '<' in contact:
+    return contact
+
+  alias, addr = contact.split('<')
+  alias = alias.strip()
+  addr = addr.split('>')[0].strip()
+
+  encoded_alias = Header(alias, 'utf-8').encode()
+  return f"{encoded_alias} <{addr}>"
+
 class SesClient(Boto3Client):
 
   def __init__(
@@ -164,9 +177,9 @@ class SesClient(Boto3Client):
     # basic construction
     msg = MIMEMultipart()
     msg['Subject'] = mail.Subject
-    msg['From'] = mail.From
-    msg['To'] = mail.To
-    msg['Cc'] = mail.Cc
+    msg['From'] = encode_email_contact(mail.From)
+    msg['To'] = ', '.join([encode_email_contact(to.strip()) for to in mail.To.split(',')])
+    msg['Cc'] = ', '.join([encode_email_contact(cc.strip()) for cc in mail.Cc.split(',')])
     body = MIMEText(mail.Body, 'plain')
     msg.attach(body)
     # attachments

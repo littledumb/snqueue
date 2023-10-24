@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "snqueue"
-version = "0.2.1"
+version = "0.2.4"
 description = "An SNS/SQS implementation of event messenger and service mechanism"
 readme = "README.md"
 requires-python = ">=3.8"
