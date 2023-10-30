@@ -1,11 +1,7 @@
 import logging
-import os
-import requests
-import shutil
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from snqueue.snqueue import DataModel, ServiceFunc, SnQueueMessenger, SnQueueService
-from urllib.parse import unquote
 
 def start_service(
     service: SnQueueService,
@@ -34,29 +30,3 @@ def start_service(
   service.logger.info('The service `%s` is up and running.' % service.name)
 
   return scheduler
-
-def download_from_url(
-    url: str,
-    local_path: str=None,
-    local_filename: str=None
-) -> str | None:
-  """
-  Download a file from URL
-
-  :param url: string
-  :param local_filename: string
-  :return: The name of local file downloaded
-  :return: None if error
-  """
-  local_path = local_path or '.'
-  local_filename = local_filename or unquote(url).split('/')[-1].split('?')[0]
-
-  try:
-    with requests.get(url, stream=True) as r:
-      with open(os.path.join(local_path, local_filename), 'wb') as f:
-        shutil.copyfileobj(r.raw, f)
-  except Exception as e:
-    logging.error(e)
-    return None
-
-  return local_filename

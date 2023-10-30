@@ -59,7 +59,7 @@ class SqsClient(Boto3BaseClient):
 
     while len(remained) > 0:
       batch = [{
-        'id': msg['ReceiptHandle'],
+        'Id': msg['MessageId'][:80],
         'ReceiptHandle': msg['ReceiptHandle']
       } for msg in remained[:10]]
       remained = remained[10:]
@@ -67,7 +67,7 @@ class SqsClient(Boto3BaseClient):
         QueueUrl=sqs_url,
         Entries=batch
       )
-      result['Successful'] += res['Successful']
-      result['Failed'] += res['Failed']
+      result['Successful'] += res.get('Successful', [])
+      result['Failed'] += res.get('Failed', [])
     
     return result

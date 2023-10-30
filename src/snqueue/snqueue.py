@@ -6,63 +6,56 @@ from snqueue.boto3_clients import SqsClient, SnsClient
 from typing import Type, TypeVar, Protocol, Any
 
 class SnQueueMessenger:
-  '''
+  """
   An SNS/SQS event messenger.
 
   :type profile_name: string
   :param profile_name: The name of AWS profile
-  '''
-  def __init__(self,
-               profile_name: str):
+  """
+  def __init__(
+      self,
+      profile_name: str
+  ) -> None:
     self.profile_name = profile_name
     return
   
-  def retrieve(self,
-               sqs_url: str,
-               delete: bool = True,
-               **kwargs) -> list[dict]:
-    '''
+  def retrieve(
+      self,
+      sqs_url: str,
+      delete: bool = True,
+      **kwargs
+  ) -> list[dict]:
+    """
     Retrieve messages.
 
-    :type sqs_url: string
     :param sqs_url: The URL of the SQS queue
-    
-    :type delete: bool
     :param delete: Whether to delete messages after receiving them. Default is True.
-
-    :type kwargs: dict
-    :param kwargs: Additional arguments (e.g. {'MaxNumberOfMessages': 1})
-
-    :rtype: list
+    :param kwargs: Dictionary of additional arguments (e.g. {'MaxNumberOfMessages': 1})
     :return: The list of messages retrieved
-    '''
+    """
     with SqsClient(self.profile_name) as sqs:
       messages = sqs.pull_messages(sqs_url, **kwargs)
 
       if delete:
+        # TODO error handling for failed deletion
         sqs.delete_messages(sqs_url, messages)
 
       return messages
     
-  def notify(self,
-             sns_topic_arn: str,
-             message: str | dict,
-             **kwargs) -> dict:
-    '''
-    Send notifications.
+  def notify(
+      self,
+      sns_topic_arn: str,
+      message: str | dict,
+      **kwargs
+  ) -> dict:
+    """
+    Send notification.
 
-    :type sns_topic_arn: string
-    :param sns_topic_arn: The ARN of the SNS topic
-
-    :type message: string | dict
+    :param sns_topic_arn: The ARN of SNS topic
     :param message: The notification message
-
-    :type kwargs: dict
-    :param kwargs: Additional arguments (e.g. {'MessageDeduplicationId': 'x'})
-
-    :rtype: dict
-    :return: The SNS response of publishing the message
-    '''
+    :param kwargs: Dictionary of additional arguments (e.g. {'MessageDeduplicationId': 'x'})
+    :return: Dictionary of SNS response of publishing the message
+    """
     if isinstance(message, dict):
       message = json.dumps(message, ensure_ascii=False).encode('utf8').decode()
     with SnsClient(self.profile_name) as sns:
@@ -91,27 +84,27 @@ class SnQueueService:
     self.require_notification_arn = require_notification_arn
     self.confirmation_only = confirmation_only
     self.data_model_class = data_model_class
-    self.logger = logging.getLogger('snqueue.service.%s' % name)
+    self.logger = logging.getLogger("snqueue.service.%s" % name)
 
   def run(self, sqs_url: str, sqs_args: dict = {}):
     try:
       messages = self.messenger.retrieve(sqs_url, **sqs_args)
     except Exception as e:
-      self.logger.critical(' Service initialization error:\n  %s', e)
+      self.logger.exception(e)
       return
 
     for message in messages:
       notif = {}
       try:
         if not self.silent:
-          self.logger.info(' Received a message:\n  %s', message)
+          self.logger.info(" Received a message:\n  %s", message)
         body = json.loads(message.get('Body'))
         message_id = body.get('MessageId')
 
         # Extract notification arn
         notif_arn = body.get('MessageAttributes', {}).get('NotificationArn', {}).get('Value')
         if not notif_arn and self.require_notification_arn:
-          raise '`NotificationArn` is required.'
+          raise "`NotificationArn` is required."
         
         # Initiate notification
         notif['RequestMessageId'] = message_id
@@ -139,4 +132,4 @@ class SnQueueService:
         if notif_arn:
           response = self.messenger.notify(notif_arn, notif)
           if not self.silent:
-            self.logger.info(' Sent a notification:\n  %s', response)
+            self.logger.info(" Sent a notification:\n  %s", response)

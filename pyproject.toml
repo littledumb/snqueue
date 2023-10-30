@@ -16,7 +16,8 @@ classifiers = [
 dependencies = [
   "boto3",
   "pydantic[email]",
-  "pycryptodomex"
+  "pycryptodomex",
+  "requests"
 ]
 
 [project.urls]
