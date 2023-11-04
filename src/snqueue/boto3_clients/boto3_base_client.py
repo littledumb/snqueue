@@ -1,5 +1,4 @@
 import boto3
-import logging
 
 class Boto3BaseClient:
   """
@@ -13,14 +12,13 @@ class Boto3BaseClient:
       client_name: str,
       profile_name: str
   ) -> None:
-    self.client_name = client_name
-    self.profile_name = profile_name
-    self.logger = logging.getLogger("snqueue.client.%s" % client_name)
+    self._client_name = client_name
+    self._profile_name = profile_name
     return
 
   def __enter__(self):
-    session = boto3.Session(profile_name=self.profile_name)
-    self.client = session.client(self.client_name)
+    session = boto3.Session(profile_name=self._profile_name)
+    self.client = session.client(self._client_name)
     return self
   
   def __exit__(self, *_):

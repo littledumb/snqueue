@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "snqueue"
-version = "0.3.0"
-description = "An SNS/SQS implementation of event messenger and service mechanism"
+version = "0.4.0"
+description = "An SNS/SQS microservice mechanism"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
@@ -17,8 +17,7 @@ dependencies = [
   "aiohttp",
   "boto3",
   "pydantic[email]",
-  "pycryptodomex",
-  "requests"
+  "pycryptodomex"
 ]
 
 [project.urls]

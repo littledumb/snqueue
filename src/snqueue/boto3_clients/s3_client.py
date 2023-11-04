@@ -58,21 +58,16 @@ class S3Client(Boto3BaseClient):
     :param bucket_name: string
     :param object_key: string
     :param expiration: Time in seconds for the presigned URL to remain valid
-    :return: Presigned URL as string, If error, returns None.
+    :return: Presigned URL as string
+    :raises:
+      botocore.exceptions.ClientError: If anything wrong
     """
     # Generate a presigend URL for the S3 object
-    try:
-      response = self.client.generate_presigned_url(
-        'get_object',
-        Params={'Bucket': bucket_name, 'Key': object_key},
-        ExpiresIn=expiration
-      )
-    except ClientError as e:
-      self.logger.error(e)
-      return None
-    
-    # The response is the presigned URL
-    return response
+    return self.client.generate_presigned_url(
+      'get_object',
+      Params={'Bucket': bucket_name, 'Key': object_key},
+      ExpiresIn=expiration
+    )
   
   def create_presigned_post(
       self,
@@ -93,20 +88,14 @@ class S3Client(Boto3BaseClient):
     :return: Dictionary with the following keys:
       url: URL to post to
       fields: Dictionary of form fields and values to submit with the POST
-    :return: None if error
+    :raises:
+      botocore.exceptions.ClientError: If anything wrong
     """
     # Generate a presigned S3 POST URL
-    try:
-      response = self.client.generate_presigned_post(
-        bucket_name,
-        object_key,
-        Fields=fields,
-        Conditions=conditions,
-        ExpiresIn=expiration
-      )
-    except ClientError as e:
-      self.logger.error(e)
-      return None
-    
-    # The response contains the presigned URL and required fields
-    return response
+    return self.client.generate_presigned_post(
+      bucket_name,
+      object_key,
+      Fields=fields,
+      Conditions=conditions,
+      ExpiresIn=expiration
+    )

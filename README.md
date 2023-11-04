@@ -1,4 +1,4 @@
-# SnQueue - An SNS/SQS Event Messenger and Service Mechanism
+# SnQueue - An SNS/SQS Microservice Mechanism
 
 ## Installation
 
@@ -6,87 +6,85 @@
 pip install snqueue
 ```
 
-## Examples
-
-### A Simple Messenger
-
-```py3
-from snqueue import SnQueueMessenger
-
-profile_name = "MY_AWS_PROFILE_NAME"
-sqs_url = "MY_SQS_URL"
-sns_topic_arn = "MY_SNS_TOPIC_ARN"
-
-try:
-  messenger = SnQueueMessenger(profile_name)
-
-  messages = messenger.retrieve(sqs_url)
-  print(messages)
-
-  response = messenger.notify(sns_topic_arn, "A dumb notification")
-  print(response)
-except Exception as e:
-  print(e)
-```
-
-### A Dumb Service
+## A Dumb Service Example
 
 ```py3
 import json
+import logging
 import time
-from snqueue import SnQueueMessenger, SnQueueService, start_service
+
+from pydantic import BaseModel
+from snqueue.boto3_clients import SqsClient
+from snqueue.service import SnQueueService
+from threading import Thread
+
+# A data model class for validation
+class DataModel(BaseModel):
+  a: int
+  b: int
 
 # Define the service function
-def dumb_service_func(data: str, **_) -> int:
-  data = json.loads(data)
-  return data['a'] + data['b']
+def dumb_service_func(
+    message: dict,
+    service: SnQueueService
+):
+  body = json.loads(message.get('Body'))
+  attributes = body.get('MessageAttributes', {})
+  if attributes.get('Type', {}).get('Value') == 'Request':
+    data = DataModel.model_validate_json(body.get('Message'), strict=True)
+    notification_arn = attributes.get('NotificationArn', {}).get('Value')
+    service.notify(
+      notification_arn,
+      {'sum': data.a + data.b},
+      MessageAttributes={
+        'Type': {'DataType': 'String', 'StringValue': 'Response'}}
+    )
 
 if __name__ == '__main__':
-  import logging
+  logging.basicConfig(level=logging.INFO)
+
+  # Some variables
+  service_name = "A_SERVICE_NAME"
+  aws_profile_name = "AN_AWS_PROFILE_NAME"
+  service_sqs_url = "AN_SQS_URL"
+  service_topic_arn = "AN_SNS_TOPIC_ARN"
+  notification_arn = "ANOTHER_SNS_TOPIC_ARN"
+  notification_sqs_url = "ANOTHER_SQS_URL"
 
   # Setup and start the service
-  service_name = "MY_SERVICE_NAME"
-  aws_profile_name = "MY_AWS_PROFILE_NAME"
-  
   service = SnQueueService(
     service_name,
     aws_profile_name,
     dumb_service_func
   )
 
-  service_sqs_url = "MY_SERVICE_SQS_URL"
-  
-  scheduler = start_service(
-    service,
-    service_sqs_url
-  )
+  thread = Thread(target=service.listen, args=(service_sqs_url,))
+  thread.start()
 
   # Send request to the service
-  service_topic_arn = "MY_SERVICE_TOPIC_ARN"
-  notif_arn = "MY_RESULT_TOPIC_ARN"
-  notif_sqs_url = "MY_RESULT_SQS_URL"
-
-  task_messenger = SnQueueMessenger(aws_profile_name)
-  response = task_messenger.notify(
+  service.notify(
     service_topic_arn,
     {'a': 1, 'b': 2},
     MessageAttributes={
+      'Type': {
+        'DataType': 'String',
+        'StringValue': 'Request'
+      },
       'NotificationArn': {
         'DataType': 'String',
-        'StringValue': notif_arn
+        'StringValue': notification_arn
       }
     })
-  logging.info("Request has been sent:")
-  logging.info(response)
+  logging.info("Request has been sent.")
 
   # Get result notification
   time.sleep(5)
 
-  result_messenger = SnQueueMessenger(aws_profile_name)
-  messages = result_messenger.retrieve(notif_sqs_url)
-  logging.info("Result notficiations:")
-  logging.info(messages)
+  with SqsClient(aws_profile_name) as sqs:
+    messages = sqs.pull_messages(notification_sqs_url)
+    logging.info("Result notficiations:")
+    logging.info(messages)
 
   # Shut down the service
-  scheduler.shutdown()
+  service.shutdown()
 ```
