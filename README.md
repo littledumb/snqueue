@@ -84,6 +84,7 @@ if __name__ == '__main__':
     messages = sqs.pull_messages(notification_sqs_url)
     logging.info("Result notficiations:")
     logging.info(messages)
+    sqs.delete_messages(notification_sqs_url, messages)
 
   # Shut down the service
   service.shutdown()

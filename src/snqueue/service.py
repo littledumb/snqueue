@@ -6,7 +6,34 @@ import signal
 from concurrent.futures import ThreadPoolExecutor
 from pydantic import BaseModel, Field, validate_call
 from snqueue.boto3_clients import SqsClient, SnsClient
-from typing import Protocol, Any
+from typing import Protocol, Any, TypeVar
+
+class MessageDataModel(BaseModel):
+  """
+  Data model for processing SQS messages
+  """
+  @classmethod
+  def parse_message(cls, message: dict) -> dict:
+    """
+    Parse message received from SQS, extracting message_id, data and attributes.
+
+    :param message: Dictionary
+    :param data_model: Used to validate data if provided
+    :return: Dictionary with keys of 'id', 'data' and 'attributes'
+    :raises:
+      ValueError from pydantic
+    """
+    body = json.loads(message.get('Body'))
+    id = body.get('MessageId')
+    data = body.get('Message')
+    data = cls.model_validate_json(data, strict=True)
+    data = data.model_dump(exclude_none=True)
+
+    attributes = body.get('MessageAttributes', {})
+    for key, value in attributes.items():
+      attributes[key] = value.get('Value')
+
+    return {'id': id, 'data': data, 'attributes': attributes }
 
 class ServiceConfig(BaseModel):
   MaxNumberOfMessages: int = Field(1, gt=1, le=10)
@@ -39,6 +66,10 @@ class SnQueueService:
 
     signal.signal(signal.SIGINT, self.shutdown)
     signal.signal(signal.SIGTERM, self.shutdown)
+
+  @property
+  def logger(self):
+    return self._logger
 
   def shutdown(self, *args, **kwargs) -> None:
     self._running = False
@@ -73,4 +104,57 @@ class SnQueueService:
     """
     message = json.dumps(message, ensure_ascii=False).encode('utf8').decode()
     with SnsClient(self._aws_profile_name) as sns:
-      return sns.publish(sns_topic_arn, message, **kwargs)
+      response = sns.publish(sns_topic_arn, message, **kwargs)
+    return response
+
+  def result_response(self, response_arn: str, request_message_id: str, result: dict) -> dict:
+    """
+    Send result response.
+
+    :param response_arn: String.
+    :param request_message_id: String.
+    :param result: Dictionary.
+    :return: Dictionary of response of sending response.
+    """
+    return self.notify(
+      response_arn,
+      result,
+      MessageAttributes={
+        'RequestMessageId': {
+          'DataType': 'String',
+          'StringValue': request_message_id
+        },
+        'Type': {
+          'DataType': 'String',
+          'StringValue': 'Response'
+        }
+      }
+    )
+  
+  def error_response(self, response_arn: str, request_message_id: str, error_msg: str) -> dict:
+    """
+    Send result response.
+
+    :param response_arn: String.
+    :param request_message_id: String.
+    :param result: Dictionary.
+    :return: Dictionary of response of sending response.
+    """
+    return self.notify(
+      response_arn,
+      {},
+      MessageAttributes={
+        'RequestMessageId': {
+          'DataType': 'String',
+          'StringValue': request_message_id
+        },
+        'Type': {
+          'DataType': 'String',
+          'StringValue': 'ErrorResponse'
+        },
+        'ErrorMessage': {
+          'DataType': 'String',
+          'StringValue': error_msg
+        }
+      }
+    )
