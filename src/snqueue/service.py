@@ -35,7 +35,7 @@ class SnQueueService:
     self._service_func = service_func
     self._config = ServiceConfig(**config)
 
-    self.logger = logging.getLogger("snqueue.service.%s" % name)
+    self._logger = logging.getLogger(name)
 
     signal.signal(signal.SIGINT, self.shutdown)
     signal.signal(signal.SIGTERM, self.shutdown)
@@ -50,12 +50,15 @@ class SnQueueService:
     # https://www.digitalocean.com/community/tutorials/how-to-use-threadpoolexecutor-in-python-3
     with ThreadPoolExecutor(max_workers=self._config.MaxWorkers) as executor:
       while self._running:
-        with SqsClient(self._aws_profile_name) as sqs:
-          sqs_args = {key: dict(self._config).get(key) for key in [
-            'MaxNumberOfMessages', 'VisibilityTimeout', 'WaitTimeSeconds']}
-          messages = sqs.pull_messages(sqs_url, **sqs_args)
-          executor.map(lambda message: self._service_func(message, self), messages)
-          sqs.delete_messages(sqs_url, messages)
+        try:
+          with SqsClient(self._aws_profile_name) as sqs:
+            sqs_args = {key: dict(self._config).get(key) for key in [
+              'MaxNumberOfMessages', 'VisibilityTimeout', 'WaitTimeSeconds']}
+            messages = sqs.pull_messages(sqs_url, **sqs_args)
+            executor.map(lambda message: self._service_func(message, self), messages)
+            sqs.delete_messages(sqs_url, messages)
+        except Exception as e:
+          self._logger.exception(e)
     print("The service has been shut down.")
 
   @validate_call
