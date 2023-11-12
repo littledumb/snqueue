@@ -3,55 +3,52 @@ import aiohttp
 import asyncio
 import os
 
+from collections.abc import Iterable
 from urllib.parse import unquote
 
-MAX_TASKS = 5
-
-async def aio_download_single(
+async def _download_single(
     semaphore: asyncio.Semaphore,
     session: aiohttp.ClientSession,
     url: str,
-    dest_dir: str,
-    silent: bool=True,
-    **kwargs
+    dest_dir: str
 ) -> str | None:
   async with semaphore:
-    async with session.get(url, **kwargs) as r:
+    async with session.get(url) as r:
       if not r.status == 200:
         return None
-      
+    
       header = r.headers.get("content-disposition")
       if header:
         filename = header.split("filename=")[1]
       else:
         filename = unquote(url.split('?')[0].split('/')[-1])
-      dest = os.path.join(dest_dir, filename)
-      
-      async with aiofiles.open(dest, mode="wb") as f:
-        if not silent:
-          print(f"Start downloading {url} into {dest}...")
-        await f.write(await r.read())
-        if not silent:
-          print(f"{url} is downloaded into {dest}.")
-        return dest
+      filepath = os.path.join(dest_dir, filename)
 
-async def aio_download(
-    session: aiohttp.ClientSession,
-    urls: list[str],
+      async with aiofiles.open(filepath, mode="wb") as f:
+          await f.write(await r.read())
+          return filepath
+    
+async def _download(
+    urls: Iterable[str],
     dest_dir: str,
-    **kwargs
+    max_workers: int
+):
+  semaphore = asyncio.Semaphore(max_workers)
+  async with aiohttp.ClientSession() as session:
+    tasks = map(
+      lambda url: _download_single(
+        semaphore,
+        session,
+        url,
+        dest_dir
+      ),
+      urls
+    )
+    return await asyncio.gather(*tasks)
+  
+def download(
+    urls: Iterable[str],
+    dest_dir: str,
+    max_workers: int=5
 ) -> list[str]:
-  semaphore = asyncio.Semaphore(MAX_TASKS)
-  tasks = map(
-    lambda url: aio_download_single(semaphore, session, url, dest_dir, **kwargs),
-    urls
-  )
-  return await asyncio.gather(*tasks)
-
-def download(urls: list[str], dest_dir: str, **kwargs) -> list[str]:
-  async def _async_download():
-    async with aiohttp.ClientSession() as session:
-      dest = await aio_download(session, urls, dest_dir, **kwargs)
-      return dest
-  return asyncio.run(_async_download())
-
+  return asyncio.run(_download(urls, dest_dir, max_workers))
