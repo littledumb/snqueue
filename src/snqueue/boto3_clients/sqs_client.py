@@ -1,6 +1,7 @@
-from snqueue.boto3_clients import Boto3BaseClient
 from pydantic import BaseModel, Field
 from typing import Optional
+
+from snqueue.boto3_clients import Boto3BaseClient
 
 class SqsReceiveMessageArgs(BaseModel):
   MaxNumberOfMessages: Optional[int] = Field(1, gt=1, le=10)
@@ -71,3 +72,20 @@ class SqsClient(Boto3BaseClient):
       result['Failed'] += res.get('Failed', [])
     
     return result
+
+  def change_message_visibility_batch(
+      self,
+      sqs_url: str,
+      messages: list[dict],
+      timeout: int
+  ) -> dict:
+    entries = [{
+      "Id": message["MessageId"],
+      "ReceiptHandle": message["ReceiptHandle"],
+      "VisibilityTimeout": timeout
+    } for message in messages]
+
+    return self.client.change_message_visibility_batch(
+      QueueUrl=sqs_url,
+      Entries=entries
+    )

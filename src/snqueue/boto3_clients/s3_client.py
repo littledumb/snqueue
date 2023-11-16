@@ -1,6 +1,6 @@
-from botocore.exceptions import ClientError
-from snqueue.boto3_clients import Boto3BaseClient
 from typing import IO
+
+from snqueue.boto3_clients import Boto3BaseClient
 
 class S3Client(Boto3BaseClient):
   """

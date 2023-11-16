@@ -15,8 +15,9 @@ from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pydantic import BaseModel, Field, NameEmail
-from snqueue.boto3_clients import SesClient, S3Client, KmsClient
 from typing import IO, Optional
+
+from snqueue.boto3_clients import SesClient, S3Client, KmsClient
 
 class Email(BaseModel):
   """

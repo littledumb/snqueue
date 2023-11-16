@@ -1,6 +1,7 @@
-from snqueue.boto3_clients import Boto3BaseClient
 from pydantic import BaseModel
 from typing import Optional
+
+from snqueue.boto3_clients import Boto3BaseClient
 
 class SnsPublishArgs(BaseModel):
   Subject: Optional[str]
