@@ -1,12 +1,13 @@
+import json
 import logging
 import signal
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import Protocol
+from dataclasses import dataclass
+from typing import Any, Protocol
 
-from snqueue.boto3_clients import SqsClient
-from snqueue.service.helper import SqsConfig
-from snqueue.service import SnQueueRequest, SnQueueResponse
+from snqueue.boto3_clients import SqsClient, SnsClient
+from snqueue.service.helper import convert_attributes, parse_message_attributes, SqsConfig, SqsMessage, SqsMessageBody, to_str
 
 # config default logging
 logging.basicConfig(
@@ -17,6 +18,88 @@ default_logger = logging.getLogger("snqueue.service.server")
 default_logger.setLevel(logging.INFO)
 # hide botocore info level messages
 logging.getLogger("botocore").setLevel(logging.WARN)
+
+@dataclass
+class SnQueueRequest:
+  message_id: str
+  topic_arn: str
+  request_message_id: str
+  received_timestamp: str
+  data: Any
+  attributes: dict
+  app: 'SnQueueServer' = None # an `SnQueueServer` object
+
+  @classmethod
+  def parse(cls, raw_sqs_message: dict) -> 'SnQueueRequest':
+    sqs_message = SqsMessage(**raw_sqs_message)
+    message_id = sqs_message.MessageId
+    body = SqsMessageBody(**json.loads(sqs_message.Body))
+    request_message_id = body.MessageId
+    topic_arn = body.TopicArn
+    received_timestamp = body.Timestamp
+    try:
+      data = json.loads(body.Message)
+    except:
+      data = body.Message
+    attributes = parse_message_attributes(body.MessageAttributes)
+
+    return cls(
+      message_id = message_id,
+      topic_arn = topic_arn,
+      request_message_id = request_message_id,
+      received_timestamp = received_timestamp,
+      data = data,
+      attributes = attributes
+    )
+
+@dataclass
+class SnQueueResponse:
+  request_message_id: str
+  service_arn: str
+  app = None # an `SnQueueServer` object
+
+  def __init__(
+      self,
+      aws_profile_name: str,
+      req: SnQueueRequest
+  ):
+    self.request_message_id = req.request_message_id
+    self.service_arn = req.topic_arn
+    self._aws_profile_name = aws_profile_name
+
+  def status(self, status: int) -> 'SnQueueResponse':
+    self._status = status
+    return self
+
+  def send(
+      self,
+      arn: str,
+      data: Any,
+      attributes: dict={}
+  ) -> dict:
+    message = to_str(data)
+
+    snqueue_response_metadata = {
+      "SnQueueResponseMetadata": {
+        "RequestId": self.request_message_id,
+        "TopicArn": self.service_arn,
+        "StatusCode": self._status or 200
+      }
+    }
+
+    try:
+      attributes.update(snqueue_response_metadata)
+    except:
+      attributes = snqueue_response_metadata
+    
+    msg_attr = convert_attributes(attributes)
+
+    with SnsClient(self._aws_profile_name) as sns:
+      return sns.publish(
+        arn,
+        message,
+        MessageAttributes = msg_attr
+      )
 
 class SnQueueServiceFn(Protocol):
   def __call__(
