@@ -27,7 +27,7 @@ class SnQueueRequest:
   received_timestamp: str
   data: Any
   attributes: dict
-  app: 'SnQueueServer' = None # an `SnQueueServer` object
+  app: 'SnQueueServer' = None
 
   @classmethod
   def parse(cls, raw_sqs_message: dict) -> 'SnQueueRequest':
@@ -56,7 +56,7 @@ class SnQueueRequest:
 class SnQueueResponse:
   request_message_id: str
   service_arn: str
-  app = None # an `SnQueueServer` object
+  app: 'SnQueueServer' = None
 
   def __init__(
       self,
