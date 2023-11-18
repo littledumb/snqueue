@@ -13,10 +13,11 @@ class SnQueueRequest:
   received_timestamp: str
   data: Any
   attributes: dict
+  app = None # an `SnQueueServer` object
 
   @classmethod
-  def parse(cls, message: dict) -> 'SnQueueRequest':
-    sqs_message = SqsMessage(**message)
+  def parse(cls, raw_sqs_message: dict) -> 'SnQueueRequest':
+    sqs_message = SqsMessage(**raw_sqs_message)
     message_id = sqs_message.MessageId
     body = SqsMessageBody(**json.loads(sqs_message.Body))
     request_message_id = body.MessageId

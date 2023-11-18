@@ -4,10 +4,9 @@ import signal
 from concurrent.futures import ThreadPoolExecutor
 from typing import Protocol
 
+from snqueue.boto3_clients import SqsClient
 from snqueue.service.helper import SqsConfig
 from snqueue.service import SnQueueRequest, SnQueueResponse
-
-from snqueue.boto3_clients import SqsClient
 
 # config default logging
 logging.basicConfig(
@@ -66,6 +65,7 @@ class SnQueueServer:
   ):
     req = SnQueueRequest.parse(message)
     res = SnQueueResponse(self.aws_profile_name, req)
+    req.app = res.app = self
     fn(req, res)
 
   def _consume_messages(

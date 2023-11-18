@@ -9,6 +9,7 @@ from snqueue.service.request import SnQueueRequest
 class SnQueueResponse:
   request_message_id: str
   service_arn: str
+  app = None # an `SnQueueServer` object
 
   def __init__(
       self,
