@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import signal
@@ -190,8 +191,13 @@ class SnQueueServer:
     self.logger.info("The server is up and running.")
 
     with ThreadPoolExecutor() as executor:
-      for url in sqs_urls:
-        self._serve(url, sqs_args, executor)
+      def _start_service(sqs_url: str) -> None:
+        self._serve(sqs_url, sqs_args, executor)
+
+      executor.map(_start_service, sqs_urls)
+      # keep the executor alive
+      while self._running:
+        asyncio.run(asyncio.sleep(5))
 
   def shutdown(self, *_):
     if self._running:
