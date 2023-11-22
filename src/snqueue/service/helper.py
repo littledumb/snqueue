@@ -18,7 +18,10 @@ def convert_attributes(attributes: dict) -> dict:
   return msg_attr
 
 def to_str(obj: Any) -> str:
-  return json.dumps(obj, ensure_ascii=False).encode('utf8').decode()
+  try:
+    return json.dumps(obj, ensure_ascii=False).encode('utf8').decode()
+  except:
+    return str(obj)
 
 class SqsConfig(BaseModel):
   MaxNumberOfMessages: int = Field(1, gt=1, le=10)
