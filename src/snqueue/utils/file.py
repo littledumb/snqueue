@@ -31,7 +31,7 @@ async def _download_single(
 async def download(
     urls: Iterable[str],
     dest_dir: str,
-    max_workers: int
+    max_workers: int = 5
 ):
   semaphore = asyncio.Semaphore(max_workers)
   async with aiohttp.ClientSession() as session:
