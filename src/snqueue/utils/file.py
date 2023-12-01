@@ -28,7 +28,7 @@ async def _download_single(
           await f.write(await r.read())
           return filepath
     
-async def _download(
+async def download(
     urls: Iterable[str],
     dest_dir: str,
     max_workers: int
@@ -45,10 +45,3 @@ async def _download(
       urls
     )
     return await asyncio.gather(*tasks)
-  
-def download(
-    urls: Iterable[str],
-    dest_dir: str,
-    max_workers: int=5
-) -> list[str]:
-  return asyncio.run(_download(urls, dest_dir, max_workers))
