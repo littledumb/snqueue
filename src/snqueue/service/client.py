@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 
 from typing import Any, Protocol, Hashable
 
@@ -27,12 +28,16 @@ def default_match_fn(
 
 class ResourceSingleton(type):
   _resource_instances = {}
+  _lock = threading.Lock() # for thread safe purpose
+
   def __call__(cls, resource: Hashable, *args, **kwargs):
     if not isinstance(resource, Hashable):
       raise TypeError("Invalid arguments: `resource` must be hashable.")
     
     if resource not in cls._resource_instances:
-      cls._resource_instances[resource] = super(ResourceSingleton, cls).__call__(resource, *args, **kwargs)
+      with cls._lock: # expensive operation, that's why need two checks for the instance
+        if resource not in cls._resource_instances:
+          cls._resource_instances[resource] = super(ResourceSingleton, cls).__call__(resource, *args, **kwargs)
 
     return cls._resource_instances[resource]
   
@@ -48,11 +53,11 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
     self._aws_profile_name = aws_profile_name
     self._sqs_args = dict(sqs_config)
 
-  async def __aenter__(self) -> 'SqsVirtualQueueClient':
     self._inqueue_messages: list[dict] = []
     self._processed_messages: list[dict] = []
     self._waiting_for_polling = set()
 
+  async def __aenter__(self) -> 'SqsVirtualQueueClient':
     return self
 
   async def __aexit__(self, *_) -> None:
@@ -61,6 +66,7 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
       with SqsClient(self.aws_profile_name) as sqs:
         sqs.delete_messages(self.sqs_url, self._processed_messages)
         self._processed_messages.clear()
+    # TODO more clean up? del instance if all queues are empty?
 
   @property
   def sqs_url(self) -> str:
@@ -70,7 +76,7 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
   def aws_profile_name(self) -> str:
     return self._aws_profile_name
   
-  async def _poll_messages(self, match_fn: MatchFn) -> None:
+  def _poll_messages(self, match_fn: MatchFn) -> None:
     if len(self._inqueue_messages):
       # someone hasn't checked inqueue messages yet
       return
@@ -114,9 +120,9 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
           self._processed_messages.append(message) # mark processed
           self._waiting_for_polling.remove(message_id) # unmark waiting
           return message
-      await asyncio.sleep(0) # allow switching to other tasks
+      await asyncio.sleep(0.0001) # allow switching to other tasks
       # call for polling
-      await self._poll_messages(match_fn)
+      self._poll_messages(match_fn)
   
   async def request(
       self,

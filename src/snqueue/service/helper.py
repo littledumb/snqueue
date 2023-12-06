@@ -24,7 +24,7 @@ def to_str(obj: Any) -> str:
     return str(obj)
 
 class SqsConfig(BaseModel):
-  MaxNumberOfMessages: int = Field(1, gt=1, le=10)
+  MaxNumberOfMessages: int = Field(1, ge=1, le=10)
   VisibilityTimeout: int = Field(30, ge=0, le=60*60*12)
   WaitTimeSeconds: int = Field(20, ge=1, le=20) # enforce SQS long polling
 
