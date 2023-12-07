@@ -76,7 +76,7 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
   def aws_profile_name(self) -> str:
     return self._aws_profile_name
   
-  def _poll_messages(self, match_fn: MatchFn) -> None:
+  async def _poll_messages(self, match_fn: MatchFn) -> None:
     if len(self._inqueue_messages):
       # someone hasn't checked inqueue messages yet
       return
@@ -122,7 +122,7 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
           return message
       await asyncio.sleep(0.0001) # allow switching to other tasks
       # call for polling
-      self._poll_messages(match_fn)
+      await self._poll_messages(match_fn)
   
   async def request(
       self,
