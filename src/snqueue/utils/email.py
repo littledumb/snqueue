@@ -214,7 +214,7 @@ def get_s3_email(
     kms_client: KmsClient,
     bucket_name: str,
     object_key: str
-) -> Email:
+) -> None:
   """
   Get email from an S3 object.
 
