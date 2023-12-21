@@ -1,11 +1,14 @@
 import asyncio
 import json
+import logging
 import threading
 
 from typing import Any, Protocol, Hashable
 
 from snqueue.boto3_clients import SqsClient, SnsClient
 from snqueue.service.helper import to_str, SqsConfig
+
+logger = logging.getLogger('snqueue.service.client')
 
 class MatchFn(Protocol):
   def __call__(
@@ -57,15 +60,33 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
     self._processed_messages: list[dict] = []
     self._waiting_for_polling = set()
 
+  def _clean_processed_messages(self) -> int:
+    if not len(self._processed_messages):
+      return 0
+    
+    with SqsClient(self.aws_profile_name) as sqs:
+      result = sqs.delete_messages(
+        self.sqs_url,
+        self._processed_messages
+      )
+
+      for suc in result['Successful']:
+        found = next((x for x in self._processed_messages if x['MessageId'][:80] == suc['Id']), None)
+        if found:
+          self._processed_messages.remove(found)
+
+      if len(result['Failed']):
+        logger.warn(result['Failed'])
+    
+    return len(result['Successful'])
+
   async def __aenter__(self) -> 'SqsVirtualQueueClient':
     return self
 
   async def __aexit__(self, *_) -> None:
     # clean up
-    if len(self._processed_messages):
-      with SqsClient(self.aws_profile_name) as sqs:
-        sqs.delete_messages(self.sqs_url, self._processed_messages)
-        self._processed_messages.clear()
+    self._clean_processed_messages()
+        
     # TODO more clean up? del instance if all queues are empty?
 
   @property
@@ -81,12 +102,10 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
       # someone hasn't checked inqueue messages yet
       return
     
+    # delete processed messages first
+    self._clean_processed_messages()
+    
     with SqsClient(self.aws_profile_name) as sqs:
-      if len(self._processed_messages):
-        # delete processed messages first
-        sqs.delete_messages(self.sqs_url, self._processed_messages)
-        self._processed_messages.clear()
-
       messages = sqs.pull_messages(self.sqs_url, **self._sqs_args)
       unmatched = []
       # check with being waited
