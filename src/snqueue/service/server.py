@@ -134,6 +134,10 @@ class SnQueueServer:
   @property
   def logger(self) -> logging.Logger:
     return self._logger
+  
+  @property
+  def is_running(self) -> bool:
+    return self._running
 
   def use(
       self,

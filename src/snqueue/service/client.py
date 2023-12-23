@@ -59,6 +59,7 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
     self._inqueue_messages: list[dict] = []
     self._processed_messages: list[dict] = []
     self._waiting_for_polling = set()
+    self._errorout = set()
 
   def _clean_processed_messages(self) -> int:
     if not len(self._processed_messages):
@@ -108,16 +109,28 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
     with SqsClient(self.aws_profile_name) as sqs:
       messages = sqs.pull_messages(self.sqs_url, **self._sqs_args)
       unmatched = []
-      # check with being waited
+
       for message in messages:
         matched = False
+        # check with being waited
         for being_waited in self._waiting_for_polling:
           if match_fn(being_waited, message):
             matched = True
             self._inqueue_messages.append(message)
             break
+        
+        if not matched:
+          # check with error out
+          for errorout in self._errorout:
+            if match_fn(errorout, message):
+              matched = True
+              self._processed_messages.append(message)
+              self._errorout.discard(errorout)
+              break
+
         if not matched:
           unmatched.append(message)
+
       # change visibility for unmatched messages
       if len(unmatched):
         sqs.change_message_visibility_batch(self.sqs_url, unmatched, 0)
@@ -151,13 +164,20 @@ class SqsVirtualQueueClient(metaclass=ResourceSingleton):
       match_fn: MatchFn = default_match_fn,
       **kwargs
   ) -> dict:
-    with SnsClient(self.aws_profile_name) as sns:
-      res = sns.publish(
-        topic_arn,
-        to_str(data),
-        **kwargs
+    try:
+      with SnsClient(self.aws_profile_name) as sns:
+        res = sns.publish(
+          topic_arn,
+          to_str(data),
+          **kwargs
+        )
+      message_id = res["MessageId"]
+      return await asyncio.wait_for(
+        self._get_response(message_id, match_fn), timeout
       )
-    message_id = res["MessageId"]
-    return await asyncio.wait_for(self._get_response(message_id, match_fn), timeout)
-    #async with asyncio.timeout(timeout):
-    #  return await self._get_response(message_id, match_fn)
+    except Exception as e:
+      if message_id:
+        self._errorout.add(message_id)
+        self._waiting_for_polling.discard(message_id)
+      raise e
+
